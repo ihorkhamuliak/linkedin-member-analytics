@@ -9,7 +9,7 @@ My IDs, credentials and prompts are replaced with placeholders, so it does nothi
 
 ## How a post moves
 
-1. **Schedule.** Weekdays at 09:00, with backup runs at 11:00 and 13:00.
+1. **Schedule.** Weekdays at 09:00, with backup runs at 11:00 and 13:00, in the timezone of your n8n instance. The n8n default is New York, so set `GENERIC_TIMEZONE` or change the cron.
 2. **Pick.** Reads the queue. Rows with a date that is due go first, and a dated post owns its day. Otherwise the next undated `ready` row.
 3. **Reserve.** The row becomes `pending`, so the next run cannot take it twice.
 4. **Text.** `type` decides: `raw` is published as written, `temat` and `projekt` are written by Claude from your note.

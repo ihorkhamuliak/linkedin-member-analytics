@@ -14,7 +14,7 @@
         }
       },
       "id": "b8223449-8714-50f3-a092-679370947ddc",
-      "name": "Schedule (daily 09:00)",
+      "name": "Schedule (weekdays)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
@@ -1914,7 +1914,7 @@
     },
     {
       "id": "97bb6597-371a-5780-848c-215947514932",
-      "name": "Schedule (backup 11:00/13:00)",
+      "name": "Schedule (backup runs)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
@@ -2809,7 +2809,7 @@
         ]
       ]
     },
-    "Schedule (daily 09:00)": {
+    "Schedule (weekdays)": {
       "main": [
         [
           {
@@ -2853,7 +2853,7 @@
         ]
       ]
     },
-    "Schedule (backup 11:00/13:00)": {
+    "Schedule (backup runs)": {
       "main": [
         [
           {
@@ -2954,7 +2954,8 @@
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "binaryMode": "separate"
   },
   "active": false
 }
