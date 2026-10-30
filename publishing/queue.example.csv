@@ -1,0 +1,4 @@
+id,type,content,scheduled_date,status,posted_at,image,post_text,post_url
+,raw,"A finished post, published exactly as written.",04.11.2026,ready,,,,
+,temat,Why most automations fail in the second month,,ready,,,,
+,projekt,"Note about a project: what was slow, what you built, what changed.",,ready,,,,

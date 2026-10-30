@@ -1,0 +1,2960 @@
+{
+  "id": "publishingPipeline",
+  "name": "LinkedIn publishing pipeline (queue, approval, publish)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "b8223449-8714-50f3-a092-679370947ddc",
+      "name": "Schedule (daily 09:00)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1008,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "post-queue"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "status",
+              "lookupValue": "ready"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f3973b54-e7a8-54b5-9cb1-237ef2ad37dc",
+      "name": "Sheet: get ready rows",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -784,
+        96
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "googleSheetsOAuth2Api"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {},
+      "id": "c5e5aaa5-9eab-5ab0-8608-aaffdc485a46",
+      "name": "Limit",
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        -576,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-type",
+              "leftValue": "={{ $json.type }}",
+              "rightValue": "projekt",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d28fb8e9-b6e6-5242-b5c6-6b2ea36b472e",
+      "name": "type = projekt?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -144,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 1024,\n  \"temperature\": 0.7,\n  \"system\": \"{{ JSON.stringify($('System prompt').item.json.sys).slice(1,-1) }}\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"Write a LinkedIn case study post from this project note: {{ JSON.stringify($json.content).slice(1,-1) }}. Do not reveal client names or sensitive data.\" }\n  ]\n}",
+        "options": {}
+      },
+      "id": "571d5e67-a903-5853-b180-5db671ceb145",
+      "name": "Claude (projekt/lead)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        80,
+        -128
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "httpHeaderAuth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 1024,\n  \"temperature\": 0.7,\n  \"system\": \"{{ JSON.stringify($('System prompt').item.json.sys).slice(1,-1) }}\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"Write a short LinkedIn post on this topic: {{ JSON.stringify($('Limit').item.json.content).slice(1,-1) }}. Do not repeat these recent openings: {{ JSON.stringify((($json.post_text || []).filter(t => typeof t === 'string' && t.trim()).slice(-5).map(t => t.trim().split('\\n')[0]).join(' | ')) || 'none').slice(1,-1) }}.\" }\n  ]\n}",
+        "options": {}
+      },
+      "id": "875b21a7-57c9-5d38-be38-fc06fe72831a",
+      "name": "Claude (temat/chill)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        208,
+        288
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_ME",
+          "name": "httpHeaderAuth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "asg-1",
+              "name": "postText",
+              "value": "={{ Array.isArray($json.content) ? $json.content[0].text : $json.content }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cc7e5dfe-401a-5778-9d6a-7b0377599562",
+      "name": "Post Text",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        320,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "sendAndWait",
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "message": "={{ (/[$€£]\\s?\\d|\\d+\\s*(dollars|euros|zloty|PLN|USD|EUR)/i.test(String($('Post Text').item.json.postText)) ? '⚠️ MONEY IN TEXT, CHECK THE NUMBERS\\n\\n' : '') + String($('Post Text').item.json.postText).replace(/([_*`\\[])/g, '\\\\$1') }}",
+        "approvalOptions": {
+          "values": {
+            "approvalType": "double"
+          }
+        },
+        "options": {
+          "limitWaitTime": {
+            "values": {
+              "resumeAmount": 20
+            }
+          },
+          "appendAttribution": false
+        }
+      },
+      "id": "da5aeb5b-537b-5d42-a542-559aa0c19ddb",
+      "name": "Telegram Approve",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1216,
+        304
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "telegramApi"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-approved",
+              "leftValue": "={{ $json.data.approved }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "cf71ebab-b034-5ed5-9fe1-ff13b729f9fb",
+      "name": "Approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1392,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "person": "YOUR_PERSON_ID",
+        "text": "={{ $('Post Text').item.json.postText }}",
+        "additionalFields": {}
+      },
+      "id": "b76c76db-a178-5ce9-aeae-01ab1dce4459",
+      "name": "LinkedIn Post",
+      "type": "n8n-nodes-base.linkedIn",
+      "typeVersion": 1,
+      "position": [
+        1968,
+        0
+      ],
+      "credentials": {
+        "linkedInOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "linkedInOAuth2Api"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "post-queue"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Limit').item.json.id }}",
+            "status": "done",
+            "posted_at": "={{ $now.toISO() }}",
+            "post_text": "={{ $('Post Text').item.json.postText }}",
+            "post_url": "={{ ($json.urn || ($json.headers || {})['x-restli-id'] || '') ? 'https://www.linkedin.com/feed/update/' + ($json.urn || ($json.headers || {})['x-restli-id'] || '') : '' }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "type",
+              "displayName": "type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "content",
+              "displayName": "content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "scheduled_date",
+              "displayName": "scheduled_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "posted_at",
+              "displayName": "posted_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            },
+            {
+              "id": "post_text",
+              "displayName": "post_text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "post_url",
+              "displayName": "post_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "aa463add-0cbe-5b39-96f4-1de75006997e",
+      "name": "Sheet: mark done",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2240,
+        -16
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "googleSheetsOAuth2Api"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "7fc3389d-f93e-5ffa-989a-62943331b1d4",
+              "leftValue": "={{ $json.type }}",
+              "rightValue": "raw",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -32,
+        240
+      ],
+      "id": "1c261041-8b2b-537c-b9ad-3e541cb6aed1",
+      "name": "If type = raw?"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "post-queue"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Limit').item.json.id }}",
+            "status": "skip",
+            "posted_at": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "type",
+              "displayName": "type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "content",
+              "displayName": "content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "scheduled_date",
+              "displayName": "scheduled_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "posted_at",
+              "displayName": "posted_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "ec991dc4-d620-5e96-9e91-6e7d82b6dde8",
+      "name": "Sheet: mark skip",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1568,
+        160
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "googleSheetsOAuth2Api"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d0da4a3b-f5c5-5c01-b22d-00422be42d30",
+              "name": "sys",
+              "value": "You write LinkedIn posts for the account owner. Replace this text with your own voice: who you are, what you do, how you write, what you never write. Never invent numbers, clients or quotes.",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -368,
+        96
+      ],
+      "id": "ff20a8e7-dd68-56cf-8452-29ca9f8745a8",
+      "name": "System prompt"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b76a539b-39e0-5462-9289-0218b3c7fb99",
+              "leftValue": "={{ $('Limit').item.json.image }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        528,
+        96
+      ],
+      "id": "bb8e4f6b-96b6-5eb1-a46a-35d1c0d9ad97",
+      "name": "Has image?"
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ (($('Limit').item.json.image || '').match(/[-\\w]{25,}/) || [$('Limit').item.json.image])[0] }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        736,
+        96
+      ],
+      "id": "a8b03c10-3205-557d-a545-92ab2e2b7404",
+      "name": "Download file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "googleDriveOAuth2Api"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "operation": "sendPhoto",
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "binaryData": true,
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        944,
+        96
+      ],
+      "id": "9bab848f-428b-5c81-b938-87ed8854e6e8",
+      "name": "Send a photo message",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "telegramApi"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b5a205f1-4eb1-555f-b012-9258bf6b231e",
+              "leftValue": "={{ $('Limit').item.json.image }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1568,
+        0
+      ],
+      "id": "8413236e-d051-5676-a6a3-fb1cdf840d35",
+      "name": "Publish with image"
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ (($('Limit').item.json.image || '').match(/[-\\w]{25,}/) || [$('Limit').item.json.image])[0] }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1712,
+        -176
+      ],
+      "id": "0087b477-a32b-505d-9a2d-d9dccc0b06fe",
+      "name": "Download file1",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "googleDriveOAuth2Api"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "person": "YOUR_PERSON_ID",
+        "text": "={{ $('Post Text').item.json.postText }}",
+        "shareMediaCategory": "IMAGE",
+        "additionalFields": {}
+      },
+      "id": "b137a4ef-bae0-52b3-be5c-b856342fb074",
+      "name": "LinkedIn Post(image)",
+      "type": "n8n-nodes-base.linkedIn",
+      "typeVersion": 1,
+      "position": [
+        1968,
+        -192
+      ],
+      "credentials": {
+        "linkedInOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "linkedInOAuth2Api"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-queue-not-empty",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7e3f24e9-fb01-50e3-857b-aff7e2d51c06",
+      "name": "Queue not empty?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -672,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "⚠️ The queue is empty. Nothing will be posted today. Add ready rows to the sheet.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "a64cf39a-1603-5484-a2aa-f042662341c4",
+      "name": "TG: queue empty",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -672,
+        304
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "telegramApi"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "post-queue"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "status",
+              "lookupValue": "done"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "929da95b-d99e-501e-bc13-10d6a3c9c9e8",
+      "name": "Sheet: get done posts",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        32,
+        416
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "googleSheetsOAuth2Api"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "fieldsToAggregate": {
+          "fieldToAggregate": [
+            {
+              "fieldToAggregate": "post_text"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b1b6fc76-f0b8-5794-87ad-cd2de24808fa",
+      "name": "Aggregate openings",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        256,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/drive/v3/files/{{ (($('Limit').item.json.image || '').match(/[-\\w]{25,}/) || [$('Limit').item.json.image])[0] }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "id,name,mimeType,size"
+            },
+            {
+              "name": "supportsAllDrives",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1180,
+        900
+      ],
+      "id": "1535b1bb-02a5-541a-9524-c98aa8ac6bc3",
+      "name": "Media: info",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "googleDriveOAuth2Api"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "14d7f9c5-ff43-552f-a71c-2ebd2a6c9a78",
+              "leftValue": "={{ $('Media: info').item.json.mimeType }}",
+              "rightValue": "image/",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1400,
+        900
+      ],
+      "id": "9124c269-35ec-5680-8611-9d72f058b199",
+      "name": "Preview: plain image?"
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "={{ '📎 ' + ($('Media: info').item.json.mimeType === 'application/vnd.google-apps.folder' ? 'Photo gallery (preview above)' : ($('Media: info').item.json.mimeType === 'application/pdf' ? 'PDF carousel' : 'Video')) + ': ' + String($('Media: info').item.json.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + ($('Media: info').item.json.mimeType === 'application/vnd.google-apps.folder' ? '' : ' | no preview, check it in Drive') }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1620,
+        1040
+      ],
+      "id": "b8541160-e3f8-55b0-b37e-7579865f0b3d",
+      "name": "TG: media note",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "telegramApi"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "7eeb8806-b735-55aa-b276-692a8255d8dc",
+              "leftValue": "={{ $('Media: info').item.json.mimeType }}",
+              "rightValue": "application/vnd.google-apps.folder",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1180,
+        1300
+      ],
+      "id": "e8bda866-8bf8-5cd3-ae30-bd061c3a2857",
+      "name": "Is folder?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "ad998be4-2b87-5c4c-a917-518d745805ef",
+              "leftValue": "={{ $('Media: info').item.json.mimeType }}",
+              "rightValue": "video/",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1180,
+        1560
+      ],
+      "id": "baf17d5c-4425-5cc8-9417-6d1dc3b9092f",
+      "name": "Is video?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d795318f-3bc0-5b69-ab38-5c24d453ca5e",
+              "leftValue": "={{ $('Media: info').item.json.mimeType }}",
+              "rightValue": "application/pdf",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1180,
+        1820
+      ],
+      "id": "c9a4c832-56fa-582a-bdb3-59aa34273d54",
+      "name": "Is PDF?"
+    },
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/drive/v3/files",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ \"'\" + $('Media: info').item.json.id + \"' in parents and trashed=false\" }}"
+            },
+            {
+              "name": "fields",
+              "value": "files(id,name,mimeType,size)"
+            },
+            {
+              "name": "orderBy",
+              "value": "name_natural"
+            },
+            {
+              "name": "pageSize",
+              "value": "50"
+            },
+            {
+              "name": "supportsAllDrives",
+              "value": "true"
+            },
+            {
+              "name": "includeItemsFromAllDrives",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1400,
+        1180
+      ],
+      "id": "664ce792-c7a4-5792-8859-88669cca8008",
+      "name": "Carousel: list",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "googleDriveOAuth2Api"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "const files = ($input.first().json.files || [])\n  .filter(f => (f.mimeType || '').startsWith('image/'))\n  .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }))\n  .slice(0, 20);\nif (files.length < 2) {\n  throw new Error('LinkedIn multi-image needs 2-20 images, the folder has ' + files.length + '. For one photo put a link to the file in the image column, not to the folder.');\n}\nreturn files.map((f, i) => ({ json: { idx: i, fileId: f.id, name: f.name } }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1620,
+        1180
+      ],
+      "id": "d65493ef-3d0c-5d2a-ad8a-6313d9719fce",
+      "name": "Carousel: pick"
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/drive/v3/files/{{ $json.fileId }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "alt",
+              "value": "media"
+            },
+            {
+              "name": "supportsAllDrives",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1840,
+        1180
+      ],
+      "id": "d9fd59ee-e447-54a6-8757-8620af3102d4",
+      "name": "Carousel: download",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "googleDriveOAuth2Api"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linkedin.com/rest/images?action=initializeUpload",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "linkedInOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "LinkedIn-Version",
+              "value": "202606"
+            },
+            {
+              "name": "X-Restli-Protocol-Version",
+              "value": "2.0.0"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ initializeUploadRequest: { owner: \"urn:li:person:YOUR_PERSON_ID\" } }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2060,
+        1180
+      ],
+      "id": "2a187bfb-63a7-5223-85da-37b400ab6efd",
+      "name": "Carousel: init upload",
+      "credentials": {
+        "linkedInOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "linkedInOAuth2Api"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "const inits = $input.all();\nconst dls = $('Carousel: download').all();\nif (inits.length !== dls.length) {\n  throw new Error('Carousel mismatch: ' + inits.length + ' uploads vs ' + dls.length + ' downloads');\n}\nreturn inits.map((it, i) => ({\n  json: { uploadUrl: it.json.value.uploadUrl, image: it.json.value.image },\n  binary: dls[i].binary,\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2280,
+        1180
+      ],
+      "id": "261475e5-cfa8-5389-a642-4b015ea3ce40",
+      "name": "Carousel: pair"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $json.uploadUrl }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "linkedInOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/octet-stream"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2500,
+        1180
+      ],
+      "id": "7d432eef-af70-51c3-ad1b-8cf0a5a20e2a",
+      "name": "Carousel: upload",
+      "credentials": {
+        "linkedInOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "linkedInOAuth2Api"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linkedin.com/rest/posts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "linkedInOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "LinkedIn-Version",
+              "value": "202606"
+            },
+            {
+              "name": "X-Restli-Protocol-Version",
+              "value": "2.0.0"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ author: \"urn:li:person:YOUR_PERSON_ID\", commentary: $('Post Text').first().json.postText, visibility: \"PUBLIC\", distribution: { feedDistribution: \"MAIN_FEED\", targetEntities: [], thirdPartyDistributionChannels: [] }, lifecycleState: \"PUBLISHED\", isReshareDisabledByAuthor: false, content: { multiImage: { images: $('Carousel: pair').all().map(x => ({ id: x.json.image })) } } }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2720,
+        1180
+      ],
+      "id": "0838ffbc-2c9e-5b18-ab72-9809b2244837",
+      "name": "Carousel: publish",
+      "credentials": {
+        "linkedInOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "linkedInOAuth2Api"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/drive/v3/files/{{ (($('Limit').item.json.image || '').match(/[-\\w]{25,}/) || [$('Limit').item.json.image])[0] }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "alt",
+              "value": "media"
+            },
+            {
+              "name": "supportsAllDrives",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1400,
+        1820
+      ],
+      "id": "d48ed7d6-4bb3-5c27-8ace-68661876229d",
+      "name": "Doc: download",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "googleDriveOAuth2Api"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linkedin.com/rest/documents?action=initializeUpload",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "linkedInOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "LinkedIn-Version",
+              "value": "202606"
+            },
+            {
+              "name": "X-Restli-Protocol-Version",
+              "value": "2.0.0"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ initializeUploadRequest: { owner: \"urn:li:person:YOUR_PERSON_ID\" } }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1620,
+        1820
+      ],
+      "id": "d361ddf4-6592-59ec-8064-b69977d51747",
+      "name": "Doc: init upload",
+      "credentials": {
+        "linkedInOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "linkedInOAuth2Api"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "const init = $input.first().json.value;\nreturn [{\n  json: { uploadUrl: init.uploadUrl, document: init.document },\n  binary: $('Doc: download').first().binary,\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1840,
+        1820
+      ],
+      "id": "682de59f-2bbe-5846-b164-a4295f989718",
+      "name": "Doc: pair"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $json.uploadUrl }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "linkedInOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/octet-stream"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2060,
+        1820
+      ],
+      "id": "6612a604-cb57-5f69-a8f2-764e2c70e7e1",
+      "name": "Doc: upload",
+      "credentials": {
+        "linkedInOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "linkedInOAuth2Api"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linkedin.com/rest/posts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "linkedInOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "LinkedIn-Version",
+              "value": "202606"
+            },
+            {
+              "name": "X-Restli-Protocol-Version",
+              "value": "2.0.0"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ author: \"urn:li:person:YOUR_PERSON_ID\", commentary: $('Post Text').first().json.postText, visibility: \"PUBLIC\", distribution: { feedDistribution: \"MAIN_FEED\", targetEntities: [], thirdPartyDistributionChannels: [] }, lifecycleState: \"PUBLISHED\", isReshareDisabledByAuthor: false, content: { media: { title: ($('Media: info').first().json.name || 'document').replace(/\\.[^.]+$/, ''), id: $('Doc: pair').first().json.document } } }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2280,
+        1820
+      ],
+      "id": "93ce7855-c48d-5a61-9fd1-ad9c9e22272e",
+      "name": "Doc: publish",
+      "credentials": {
+        "linkedInOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "linkedInOAuth2Api"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/drive/v3/files/{{ (($('Limit').item.json.image || '').match(/[-\\w]{25,}/) || [$('Limit').item.json.image])[0] }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "alt",
+              "value": "media"
+            },
+            {
+              "name": "supportsAllDrives",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1400,
+        1560
+      ],
+      "id": "52aaa7f3-1569-5c58-8bde-aca0cf2525a5",
+      "name": "Video: download",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "googleDriveOAuth2Api"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linkedin.com/rest/videos?action=initializeUpload",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "linkedInOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "LinkedIn-Version",
+              "value": "202606"
+            },
+            {
+              "name": "X-Restli-Protocol-Version",
+              "value": "2.0.0"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ initializeUploadRequest: { owner: \"urn:li:person:YOUR_PERSON_ID\", fileSizeBytes: Number($('Media: info').first().json.size), uploadCaptions: false, uploadThumbnail: false } }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1620,
+        1560
+      ],
+      "id": "583c0c2a-6330-5b7c-8077-53ab93fce70a",
+      "name": "Video: init upload",
+      "credentials": {
+        "linkedInOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "linkedInOAuth2Api"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "const init = $input.first().json.value;\nconst bin = $('Video: download').first().binary.data;\nif (!bin || !bin.data) {\n  throw new Error('Video binary unavailable (binary data mode is not in-memory?)');\n}\nconst buf = Buffer.from(bin.data, 'base64');\nif (buf.length > 100 * 1024 * 1024) {\n  throw new Error('Video is ' + Math.round(buf.length / 1048576) + ' MB. This pipeline stops at 100 MB.');\n}\nreturn init.uploadInstructions.map((p, i) => ({\n  json: { part: i, uploadUrl: p.uploadUrl },\n  binary: { data: {\n    data: buf.subarray(p.firstByte, p.lastByte + 1).toString('base64'),\n    mimeType: 'application/octet-stream',\n    fileName: 'part' + i,\n  } },\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1840,
+        1560
+      ],
+      "id": "aa591cf8-83cc-5879-b519-b12a6b5da728",
+      "name": "Video: split parts"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $json.uploadUrl }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "linkedInOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/octet-stream"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2060,
+        1560
+      ],
+      "id": "6ee205c7-24fe-5a93-b4a8-da5689e82145",
+      "name": "Video: upload part",
+      "credentials": {
+        "linkedInOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "linkedInOAuth2Api"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linkedin.com/rest/videos?action=finalizeUpload",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "linkedInOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "LinkedIn-Version",
+              "value": "202606"
+            },
+            {
+              "name": "X-Restli-Protocol-Version",
+              "value": "2.0.0"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ finalizeUploadRequest: { video: $('Video: init upload').first().json.value.video, uploadToken: $('Video: init upload').first().json.value.uploadToken || '', uploadedPartIds: $('Video: upload part').all().map(x => String((x.json.headers || {}).etag || '').replace(/\"/g, '')) } }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2280,
+        1560
+      ],
+      "id": "baad722b-faaa-5519-9ea2-2456de3db02b",
+      "name": "Video: finalize",
+      "credentials": {
+        "linkedInOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "linkedInOAuth2Api"
+        }
+      },
+      "executeOnce": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "amount": 45,
+        "unit": "seconds"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2500,
+        1560
+      ],
+      "id": "55bddc75-7d5e-51b5-bece-5e502c33aef4",
+      "name": "Video: wait for processing"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linkedin.com/rest/posts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "linkedInOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "LinkedIn-Version",
+              "value": "202606"
+            },
+            {
+              "name": "X-Restli-Protocol-Version",
+              "value": "2.0.0"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ author: \"urn:li:person:YOUR_PERSON_ID\", commentary: $('Post Text').first().json.postText, visibility: \"PUBLIC\", distribution: { feedDistribution: \"MAIN_FEED\", targetEntities: [], thirdPartyDistributionChannels: [] }, lifecycleState: \"PUBLISHED\", isReshareDisabledByAuthor: false, content: { media: { id: $('Video: init upload').first().json.value.video } } }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2720,
+        1560
+      ],
+      "id": "6821a63b-5828-5d0d-8d77-eef23fe3f172",
+      "name": "Video: publish",
+      "credentials": {
+        "linkedInOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "linkedInOAuth2Api"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const norm = v => String(v ?? '').trim();\n\nconst MONTHS = {\n  jan:1, sty:1, ciy:1, sic:1, feb:2, lut:2, mar:3, ber:3, apr:4, kwi:4, kvi:4,\n  may:5, maj:5, tra:5, jun:6, cze:6, che:6, jul:7, lip:7, aug:8, sie:8, ser:8,\n  sep:9, wrz:9, ver:9, oct:10, paz:10, zho:10, nov:11, lis:11, dec:12, gru:12, hru:12,\n};\nconst UA = { 'січ':1, 'лют':2, 'бер':3, 'кві':4, 'тра':5, 'чер':6,\n             'лип':7, 'сер':8, 'вер':9, 'жов':10, 'лис':11, 'гру':12 };\n\nfunction monthFromWord(w) {\n  w = w.toLowerCase();\n  for (const k of Object.keys(UA)) if (w.startsWith(k)) return UA[k];\n  const k3 = w.slice(0, 3);\n  if (MONTHS[k3]) return MONTHS[k3];\n  return 0;\n}\nconst pad = n => String(n).padStart(2, '0');\nconst mk = (y, m, d) => (y > 1900 && m >= 1 && m <= 12 && d >= 1 && d <= 31)\n  ? `${y}-${pad(m)}-${pad(d)}` : '';\n\n// With separators, the FIRST number is the DAY (UA/PL convention).\nfunction toIso(raw) {\n  const s = norm(raw);\n  if (!s) return '';\n\n  // Google Sheets serial number\n  if (/^\\d{4,6}$/.test(s)) {\n    const d = new Date(Date.UTC(1899, 11, 30) + Number(s) * 86400000);\n    return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);\n  }\n  // yyyy-mm-dd / yyyy.mm.dd / yyyy/mm/dd\n  let m = s.match(/^(\\d{4})[-.\\/](\\d{1,2})[-.\\/](\\d{1,2})/);\n  if (m) return mk(+m[1], +m[2], +m[3]);\n  // dd.mm.yyyy / dd/mm/yyyy / dd-mm-yyyy\n  m = s.match(/^(\\d{1,2})[-.\\/](\\d{1,2})[-.\\/](\\d{4})/);\n  if (m) return mk(+m[3], +m[2], +m[1]);\n  // 5 серпня 2026 / 5 Aug 2026 / 5 sierpnia 2026\n  m = s.match(/^(\\d{1,2})\\s+([^\\s,]+)\\,?\\s+(\\d{4})/);\n  if (m) { const mo = monthFromWord(m[2]); if (mo) return mk(+m[3], mo, +m[1]); }\n  // Aug 5 2026 / August 5, 2026\n  m = s.match(/^([^\\s\\d,]+)\\s+(\\d{1,2})\\,?\\s+(\\d{4})/);\n  if (m) { const mo = monthFromWord(m[1]); if (mo) return mk(+m[3], mo, +m[2]); }\n  return '';\n}\n\nconst today = (typeof $now !== 'undefined' && $now.toFormat)\n  ? $now.toFormat('yyyy-MM-dd')\n  : new Date().toISOString().slice(0, 10);\n\n// Read from the node that holds the full rows: this node now sits after the id write,\n// whose output is the update response, not the queue.\nconst rows = $('Assign missing ids').all().map(i => i.json).filter(r => norm(r.id));\nconst ready = rows.filter(r => norm(r.status) === 'ready');\n\nconst dated = [], undated = [];\nfor (const r of ready) {\n  const rawDate = norm(r.scheduled_date);\n  if (!rawDate) { undated.push(r); continue; }\n  const iso = toIso(rawDate);\n  if (!iso) { undated.push(r); continue; }   // unreadable date -> normal queue, never lost\n  if (iso <= today) dated.push({ r, iso });\n  // future date -> not due yet, stays in the sheet\n}\ndated.sort((a, b) => a.iso.localeCompare(b.iso) || String(a.r.id).localeCompare(String(b.r.id)));\n\n// A dated post owns its day: if anything is due by date, undated rows do not compete.\nconst ordered = dated.length ? dated.map(x => x.r) : undated;\n\nif (!ordered.length) return [{ json: {} }];\nreturn ordered.map(r => ({ json: r }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        480
+      ],
+      "id": "5dea4050-9ae5-5e83-beb1-a225bba1a5de",
+      "name": "Pick next row"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "post-queue"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Limit').item.json.id }}",
+            "status": "pending",
+            "posted_at": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "posted_at",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "posted_at",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        980,
+        240
+      ],
+      "id": "6d1b0940-a348-5f05-be1b-cd34b12e269c",
+      "name": "Sheet: mark pending",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "googleSheetsOAuth2Api"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "={{ '⏭ Post not published, marked as skip.\\nid: ' + String($('Limit').item.json.id || '?').replace(/&/g,'&amp;').replace(/</g,'&lt;') + '\\nReason: rejected, or no answer for 20 hours.\\nTo requeue it, set status=ready in the sheet.' }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1620,
+        700
+      ],
+      "id": "ad614844-36a3-50fe-936d-d61af92da523",
+      "name": "TG: post skipped",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "telegramApi"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "97bb6597-371a-5780-848c-215947514932",
+      "name": "Schedule (backup 11:00/13:00)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1008,
+        640
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 11,13 * * 1-5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "1232fac9-f6e0-5bab-97a6-6d78fd320bf7",
+      "name": "Sheet: today check",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -784,
+        640
+      ],
+      "alwaysOutputData": true,
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "YOUR_SHEET_ID",
+          "cachedResultName": "post-queue"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gid=0",
+          "cachedResultName": "Sheet1"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "googleSheetsOAuth2Api"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "d37226d0-5c66-507d-b431-9fa572e53a4d",
+      "name": "Backup guard",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -576,
+        640
+      ],
+      "parameters": {
+        "jsCode": "// Backup run guard: continue only if today's slot really was lost.\n// Every terminal action stamps posted_at, so \"today\" is decided by date, not by status alone:\n//   pending today  -> a draft is waiting in Telegram right now\n//   done today     -> already published\n//   skip today     -> does NOT block (13.09.2026): a rejected draft must be\n//                     replaced the same day, otherwise one ❌ costs a whole slot.\n//                     Timeout path is unaffected: the 20h window expires at 05:00,\n//                     so the 09:00 run of that day stamps pending before we look.\n// Yesterday's stuck pending must NOT block us: that is exactly the case this run exists for.\n// No ready rows at all -> stay silent: the 15:00 run already sent the \"queue is empty\" alert.\nconst rows = $input.all().map(i => i.json).filter(r => String(r.id ?? '').trim());\nconst today = $now.toFormat('yyyy-MM-dd');\nconst dayOf = v => String(v ?? '').trim().slice(0, 10);\nconst statusOf = r => String(r.status ?? '').trim().toLowerCase();\n\nconst actedToday = rows.some(r =>\n  ['pending', 'done'].includes(statusOf(r)) && dayOf(r.posted_at) === today);\nconst hasReady = rows.some(r => statusOf(r) === 'ready');\n\nreturn (actedToday || !hasReady) ? [] : [{ json: { backupRun: true, checkedAt: today } }];\n"
+      }
+    },
+    {
+      "id": "38178e3a-5efc-556d-9561-9907426e6f6f",
+      "name": "Assign missing ids",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -736,
+        96
+      ],
+      "parameters": {
+        "jsCode": "// A row with an empty id is invisible to the rest of this workflow: `Pick next row` filters\n// it out, and every mark-* node matches rows by id. That silently killed six planned posts.\n// So the system fills the column itself instead of asking the human to remember it.\nconst stamp = Date.now();\n\nreturn $input.all().map((item, i) => {\n  const r = { ...item.json };\n  const hasId = String(r.id ?? '').trim() !== '';\n  if (!hasId) {\n    r.id = 'auto-' + stamp + '-' + (r.row_number ?? i);\n  }\n  return { json: r };\n});\n"
+      }
+    },
+    {
+      "id": "f90d971e-99e6-5e2b-88f5-27a71631ef8d",
+      "name": "Sheet: write ids",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -688,
+        96
+      ],
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "YOUR_SHEET_ID",
+          "cachedResultName": "post-queue"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gid=0",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "value": {
+            "row_number": "={{ $json.row_number }}",
+            "id": "={{ $json.id }}"
+          },
+          "schema": [
+            {
+              "id": "row_number",
+              "type": "number",
+              "display": true,
+              "removed": false,
+              "readOnly": true,
+              "required": false,
+              "displayName": "row_number",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "id",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "id",
+              "defaultMatch": true,
+              "canBeUsedToMatch": true
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "row_number"
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "googleSheetsOAuth2Api"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "277b8876-6f92-5c29-866f-228be6e18e91",
+      "name": "Preview: is folder?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1400,
+        1060
+      ],
+      "parameters": {
+        "options": {},
+        "conditions": {
+          "options": {
+            "version": 3,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "b6fb6e44-0b45-5cea-b258-ce8619a8bcc2",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "leftValue": "={{ $('Media: info').item.json.mimeType }}",
+              "rightValue": "application/vnd.google-apps.folder"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "e09814fc-52b1-5c41-8874-9970b0041523",
+      "name": "Preview: list",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1620,
+        1060
+      ],
+      "parameters": {
+        "url": "https://www.googleapis.com/drive/v3/files",
+        "options": {},
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ \"'\" + $('Media: info').item.json.id + \"' in parents and trashed=false\" }}"
+            },
+            {
+              "name": "fields",
+              "value": "files(id,name,mimeType,size)"
+            },
+            {
+              "name": "orderBy",
+              "value": "name_natural"
+            },
+            {
+              "name": "pageSize",
+              "value": "50"
+            },
+            {
+              "name": "supportsAllDrives",
+              "value": "true"
+            },
+            {
+              "name": "includeItemsFromAllDrives",
+              "value": "true"
+            }
+          ]
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "googleDriveOAuth2Api"
+        }
+      }
+    },
+    {
+      "id": "c9ca1f17-2a90-5f01-bffb-193e4f5edf61",
+      "name": "Preview: pick",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1840,
+        1060
+      ],
+      "parameters": {
+        "jsCode": "// Preview only: take the first photos of the folder, in the same order the gallery\n// will be published in. Returning an empty list is fine, this branch is a dead end and\n// `Telegram Approve` is fed from elsewhere.\nconst MAX = 10;\n\nconst files = ($input.first().json.files || [])\n  .filter(f => (f.mimeType || '').startsWith('image/'))\n  .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }))\n  .slice(0, MAX);\n\nreturn files.map((f, i) => ({ json: { idx: i, fileId: f.id, name: f.name } }));\n"
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "293feac1-deaf-5be2-825d-943d0fb2961d",
+      "name": "Preview: download",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2060,
+        1060
+      ],
+      "parameters": {
+        "url": "=https://www.googleapis.com/drive/v3/files/{{ $json.fileId }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "alt",
+              "value": "media"
+            },
+            {
+              "name": "supportsAllDrives",
+              "value": "true"
+            }
+          ]
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "googleDriveOAuth2Api"
+        }
+      }
+    },
+    {
+      "id": "f5764274-e15a-5c47-98b7-67c45ceb0792",
+      "name": "TG: preview photo",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2280,
+        1060
+      ],
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "operation": "sendPhoto",
+        "binaryData": true,
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "telegramApi"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Sheet: get ready rows": {
+      "main": [
+        [
+          {
+            "node": "Assign missing ids",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit": {
+      "main": [
+        [
+          {
+            "node": "System prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "type = projekt?": {
+      "main": [
+        [
+          {
+            "node": "Claude (projekt/lead)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If type = raw?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude (projekt/lead)": {
+      "main": [
+        [
+          {
+            "node": "Post Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude (temat/chill)": {
+      "main": [
+        [
+          {
+            "node": "Post Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Text": {
+      "main": [
+        [
+          {
+            "node": "Sheet: mark pending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Approve": {
+      "main": [
+        [
+          {
+            "node": "Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approved?": {
+      "main": [
+        [
+          {
+            "node": "Publish with image",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sheet: mark skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LinkedIn Post": {
+      "main": [
+        [
+          {
+            "node": "Sheet: mark done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If type = raw?": {
+      "main": [
+        [
+          {
+            "node": "Post Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sheet: get done posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "System prompt": {
+      "main": [
+        [
+          {
+            "node": "type = projekt?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has image?": {
+      "main": [
+        [
+          {
+            "node": "Media: info",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Telegram Approve",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download file": {
+      "main": [
+        [
+          {
+            "node": "Send a photo message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a photo message": {
+      "main": [
+        [
+          {
+            "node": "Telegram Approve",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish with image": {
+      "main": [
+        [
+          {
+            "node": "Is folder?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LinkedIn Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download file1": {
+      "main": [
+        [
+          {
+            "node": "LinkedIn Post(image)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LinkedIn Post(image)": {
+      "main": [
+        [
+          {
+            "node": "Sheet: mark done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue not empty?": {
+      "main": [
+        [
+          {
+            "node": "Limit",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TG: queue empty",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheet: get done posts": {
+      "main": [
+        [
+          {
+            "node": "Aggregate openings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate openings": {
+      "main": [
+        [
+          {
+            "node": "Claude (temat/chill)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Media: info": {
+      "main": [
+        [
+          {
+            "node": "Preview: plain image?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preview: plain image?": {
+      "main": [
+        [
+          {
+            "node": "Download file",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preview: is folder?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "TG: media note",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TG: media note": {
+      "main": [
+        [
+          {
+            "node": "Telegram Approve",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is folder?": {
+      "main": [
+        [
+          {
+            "node": "Carousel: list",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is video?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is video?": {
+      "main": [
+        [
+          {
+            "node": "Video: download",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is PDF?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is PDF?": {
+      "main": [
+        [
+          {
+            "node": "Doc: download",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Download file1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Carousel: list": {
+      "main": [
+        [
+          {
+            "node": "Carousel: pick",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Carousel: pick": {
+      "main": [
+        [
+          {
+            "node": "Carousel: download",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Carousel: download": {
+      "main": [
+        [
+          {
+            "node": "Carousel: init upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Carousel: init upload": {
+      "main": [
+        [
+          {
+            "node": "Carousel: pair",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Carousel: pair": {
+      "main": [
+        [
+          {
+            "node": "Carousel: upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Carousel: upload": {
+      "main": [
+        [
+          {
+            "node": "Carousel: publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Carousel: publish": {
+      "main": [
+        [
+          {
+            "node": "Sheet: mark done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Doc: download": {
+      "main": [
+        [
+          {
+            "node": "Doc: init upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Doc: init upload": {
+      "main": [
+        [
+          {
+            "node": "Doc: pair",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Doc: pair": {
+      "main": [
+        [
+          {
+            "node": "Doc: upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Doc: upload": {
+      "main": [
+        [
+          {
+            "node": "Doc: publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Doc: publish": {
+      "main": [
+        [
+          {
+            "node": "Sheet: mark done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Video: download": {
+      "main": [
+        [
+          {
+            "node": "Video: init upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Video: init upload": {
+      "main": [
+        [
+          {
+            "node": "Video: split parts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Video: split parts": {
+      "main": [
+        [
+          {
+            "node": "Video: upload part",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Video: upload part": {
+      "main": [
+        [
+          {
+            "node": "Video: finalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Video: finalize": {
+      "main": [
+        [
+          {
+            "node": "Video: wait for processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Video: wait for processing": {
+      "main": [
+        [
+          {
+            "node": "Video: publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Video: publish": {
+      "main": [
+        [
+          {
+            "node": "Sheet: mark done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule (daily 09:00)": {
+      "main": [
+        [
+          {
+            "node": "Sheet: get ready rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick next row": {
+      "main": [
+        [
+          {
+            "node": "Queue not empty?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheet: mark pending": {
+      "main": [
+        [
+          {
+            "node": "Has image?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheet: mark skip": {
+      "main": [
+        [
+          {
+            "node": "TG: post skipped",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule (backup 11:00/13:00)": {
+      "main": [
+        [
+          {
+            "node": "Sheet: today check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheet: today check": {
+      "main": [
+        [
+          {
+            "node": "Backup guard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Backup guard": {
+      "main": [
+        [
+          {
+            "node": "Sheet: get ready rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assign missing ids": {
+      "main": [
+        [
+          {
+            "node": "Sheet: write ids",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheet: write ids": {
+      "main": [
+        [
+          {
+            "node": "Pick next row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preview: is folder?": {
+      "main": [
+        [
+          {
+            "node": "Preview: list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preview: list": {
+      "main": [
+        [
+          {
+            "node": "Preview: pick",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preview: pick": {
+      "main": [
+        [
+          {
+            "node": "Preview: download",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preview: download": {
+      "main": [
+        [
+          {
+            "node": "TG: preview photo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

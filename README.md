@@ -25,6 +25,10 @@ from your post list, so you can compare medians by type of post.
 
 Per week: the same totals (minus the two per-post-only metrics, see below), new followers, total followers.
 
+## Publishing
+
+`publishing/` holds the n8n workflow that publishes the posts this tool measures: queue in Google Sheets, one-tap approval in Telegram, LinkedIn API. See [publishing/README.md](publishing/README.md).
+
 ## How I checked the numbers before trusting them
 
 A new data source is wrong until it matches a number you already know.
